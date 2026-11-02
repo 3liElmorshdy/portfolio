@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Send, CheckCircle } from "lucide-react";
+import { Mail, Send, CheckCircle, MessageCircle } from "lucide-react";
 import { GithubIcon, LinkedinIcon } from "./SocialIcons";
 import { personalInfo, socialLinks } from "@/data/portfolio";
+import { contactSchema } from "@/lib/validations/contact";
 
 const iconMap: Record<string, React.ReactNode> = {
   Github: <GithubIcon size={20} />,
@@ -12,20 +13,46 @@ const iconMap: Record<string, React.ReactNode> = {
   Mail: <Mail size={20} />,
 };
 
+interface FieldErrors {
+  name?: string[];
+  email?: string[];
+  message?: string[];
+}
+
 export default function Contact() {
   const [formState, setFormState] = useState({
     name: "",
     email: "",
     message: "",
   });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const handleChange = (
+    field: "name" | "email" | "message",
+    value: string
+  ) => {
+    setFormState((prev) => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setErrorMessage("");
+
+    // 1. Client-side Zod validation
+    const result = contactSchema.safeParse(formState);
+    if (!result.success) {
+      setFieldErrors(result.error.flatten().fieldErrors);
+      return;
+    }
+
+    setFieldErrors({});
+    setLoading(true);
 
     try {
       const response = await fetch("/api/contact", {
@@ -33,17 +60,23 @@ export default function Contact() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formState),
+        body: JSON.stringify(result.data),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to send message. Please try again.");
+        if (data.errors) {
+          setFieldErrors(data.errors);
+        }
+        throw new Error(
+          data.error || "Failed to send message. Please try again."
+        );
       }
 
       setSubmitted(true);
       setFormState({ name: "", email: "", message: "" });
+      setFieldErrors({});
     } catch (err: unknown) {
       if (err instanceof Error) {
         setErrorMessage(err.message);
@@ -65,7 +98,7 @@ export default function Contact() {
           transition={{ duration: 0.5 }}
           className="text-center mb-14"
         >
-          <span className="text-primary font-mono text-sm">Contact </span>
+          <span className="text-primary font-mono text-sm">// get in touch</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mt-2">
             Contact
           </h2>
@@ -101,6 +134,25 @@ export default function Contact() {
                   </p>
                 </div>
               </a>
+
+              {/* WhatsApp direct chat link */}
+              <a
+                href="https://wa.me/201067219108"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-4 rounded-xl border border-border bg-surface hover:border-primary/50 transition-colors group"
+              >
+                <span className="text-emerald-500 p-2 rounded-lg bg-emerald-500/10">
+                  <MessageCircle size={18} />
+                </span>
+                <div>
+                  <p className="text-xs text-muted">WhatsApp</p>
+                  <p className="text-foreground text-sm font-medium group-hover:text-emerald-500 transition-colors">
+                    +20 106 721 9108
+                  </p>
+                </div>
+              </a>
+
               {socialLinks
                 .filter((s) => s.icon !== "Mail")
                 .map((link) => (
@@ -150,7 +202,7 @@ export default function Contact() {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 {errorMessage && (
                   <div className="p-3 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl">
                     {errorMessage}
@@ -166,14 +218,20 @@ export default function Contact() {
                   <input
                     id="name"
                     type="text"
-                    required
                     value={formState.name}
-                    onChange={(e) =>
-                      setFormState({ ...formState, name: e.target.value })
-                    }
+                    onChange={(e) => handleChange("name", e.target.value)}
                     placeholder="Your name"
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground placeholder:text-muted text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+                    className={`w-full px-4 py-3 rounded-xl border bg-surface text-foreground placeholder:text-muted text-sm focus:outline-none transition-colors ${
+                      fieldErrors.name
+                        ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/30"
+                        : "border-border focus:border-primary focus:ring-1 focus:ring-primary/30"
+                    }`}
                   />
+                  {fieldErrors.name?.[0] && (
+                    <p className="mt-1.5 text-xs text-red-500">
+                      {fieldErrors.name[0]}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label
@@ -185,14 +243,20 @@ export default function Contact() {
                   <input
                     id="email"
                     type="email"
-                    required
                     value={formState.email}
-                    onChange={(e) =>
-                      setFormState({ ...formState, email: e.target.value })
-                    }
+                    onChange={(e) => handleChange("email", e.target.value)}
                     placeholder="your@email.com"
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground placeholder:text-muted text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors"
+                    className={`w-full px-4 py-3 rounded-xl border bg-surface text-foreground placeholder:text-muted text-sm focus:outline-none transition-colors ${
+                      fieldErrors.email
+                        ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/30"
+                        : "border-border focus:border-primary focus:ring-1 focus:ring-primary/30"
+                    }`}
                   />
+                  {fieldErrors.email?.[0] && (
+                    <p className="mt-1.5 text-xs text-red-500">
+                      {fieldErrors.email[0]}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label
@@ -203,15 +267,21 @@ export default function Contact() {
                   </label>
                   <textarea
                     id="message"
-                    required
                     rows={5}
                     value={formState.message}
-                    onChange={(e) =>
-                      setFormState({ ...formState, message: e.target.value })
-                    }
+                    onChange={(e) => handleChange("message", e.target.value)}
                     placeholder="Tell me about the opportunity or project..."
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground placeholder:text-muted text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors resize-none"
+                    className={`w-full px-4 py-3 rounded-xl border bg-surface text-foreground placeholder:text-muted text-sm focus:outline-none transition-colors resize-none ${
+                      fieldErrors.message
+                        ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/30"
+                        : "border-border focus:border-primary focus:ring-1 focus:ring-primary/30"
+                    }`}
                   />
+                  {fieldErrors.message?.[0] && (
+                    <p className="mt-1.5 text-xs text-red-500">
+                      {fieldErrors.message[0]}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="submit"

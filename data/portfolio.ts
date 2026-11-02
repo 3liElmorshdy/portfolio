@@ -119,13 +119,7 @@ export const skillGroups: SkillGroup[] = [
   {
     category: "Testing & Debugging",
     icon: "TestTube",
-    skills: [
-      "Jest",
-      "Supertest",
-      "React Testing Library",
-      "Cypress",
-      "Chrome DevTools",
-    ],
+    skills: ["Jest", "React Testing Library", "Chrome DevTools"],
   },
   {
     category: "Tools & Deployment",
